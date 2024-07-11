@@ -1,4 +1,4 @@
-# DevOpsAssignment
+# DevOpsAssessment
 
 The code have two modules that will deploy the infrastructure. 
 
