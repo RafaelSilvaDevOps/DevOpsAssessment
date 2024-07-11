@@ -1,7 +1,5 @@
 # DevOpsAssignment
 
-# DevOpsAssignment
-
 The code have two modules that will deploy the infrastructure. 
 
 The first module will deploy the Virtual Machines, Network Subnets, Security Group, Public IP, Network Interfaces and Load Balancers.
