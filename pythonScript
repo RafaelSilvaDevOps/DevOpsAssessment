@@ -1,0 +1,163 @@
+import logging
+from azure.identity import DefaultAzureCredential
+from azure.mgmt.resource import ResourceManagementClient
+from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.sql import SqlManagementClient
+from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.storage import StorageManagementClient
+from azure.mgmt.storage.models import StorageAccountCreateParameters, Sku, Kind
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Azure authentication
+credential = DefaultAzureCredential()
+
+# Resource group parameters
+subscription_id = 'subscription_id'
+resource_group_name = 'pythonResources'
+location = 'northeurope'
+
+# VM parameters
+vm_name = 'devopsvm'
+vm_size = 'Standard_B2s'
+image_reference = {
+    'publisher': 'Canonical',
+    'offer': 'UbuntuServer',
+    'sku': '19_04-gen2',
+    'version': 'latest'
+}
+admin_username = 'azureuser'
+admin_password = 'xzyozjJ9BoKEJkB1q2vC'
+
+# SQL Database parameters
+sql_server_name = 'devopssqlserver'
+sql_db_name = 'sqldatabase'
+sql_admin_username = 'sqladmin'
+sql_admin_password = 'xzyozjJ9BoKEJkB1q2vC!@#'
+
+# Storage account parameters
+storage_account_name = 'databasestorage'
+
+# Network parameters
+vnet_name = 'devopsVnet'
+subnet_name = 'devopsSubnet'
+nic_name = 'devopsNIC'
+
+try:
+    # Resource Management Client
+    resource_client = ResourceManagementClient(credential, subscription_id)
+    resource_client.resource_groups.create_or_update(resource_group_name, {'location': location})
+    logger.info(f'Resource group {resource_group_name} created.')
+
+    # Network Management Client
+    network_client = NetworkManagementClient(credential, subscription_id)
+
+    # Create Virtual Network
+    vnet = network_client.virtual_networks.begin_create_or_update(
+        resource_group_name,
+        vnet_name,
+        {
+            'location': location,
+            'address_space': {
+                'address_prefixes': ['10.0.0.0/16']
+            }
+        }
+    ).result()
+    logger.info(f'Virtual network {vnet_name} created.')
+
+    # Create Subnet
+    subnet = network_client.subnets.begin_create_or_update(
+        resource_group_name,
+        vnet_name,
+        subnet_name,
+        {
+            'address_prefix': '10.0.0.0/24'
+        }
+    ).result()
+    logger.info(f'Subnet {subnet_name} created.')
+
+    # Create Network Interface
+    nic = network_client.network_interfaces.begin_create_or_update(
+        resource_group_name,
+        nic_name,
+        {
+            'location': location,
+            'ip_configurations': [{
+                'name': 'ipconfig1',
+                'subnet': {
+                    'id': subnet.id
+                },
+                'private_ip_allocation_method': 'Dynamic'
+            }]
+        }
+    ).result()
+    logger.info(f'Network interface {nic_name} created.')
+
+    # Compute Management Client
+    compute_client = ComputeManagementClient(credential, subscription_id)
+    compute_client.virtual_machines.begin_create_or_update(
+        resource_group_name,
+        vm_name,
+        {
+            'location': location,
+            'storage_profile': {
+                'image_reference': image_reference
+            },
+            'hardware_profile': {
+                'vm_size': vm_size
+            },
+            'os_profile': {
+                'computer_name': vm_name,
+                'admin_username': admin_username,
+                'admin_password': admin_password
+            },
+            'network_profile': {
+                'network_interfaces': [{
+                    'id': nic.id
+                }]
+            }
+        }
+    ).result()
+    logger.info(f'VM {vm_name} created.')
+
+    # SQL Management Client
+    sql_client = SqlManagementClient(credential, subscription_id)
+    sql_client.servers.begin_create_or_update(
+        resource_group_name,
+        sql_server_name,
+        {
+            'location': location,
+            'administrator_login': sql_admin_username,
+            'administrator_login_password': sql_admin_password
+        }
+    ).result()
+    logger.info(f'SQL server {sql_server_name} created.')
+
+    sql_client.databases.begin_create_or_update(
+        resource_group_name,
+        sql_server_name,
+        sql_db_name,
+        {
+            'location': location,
+            'sku': {'name': 'S0'}
+        }
+    ).result()
+    logger.info(f'SQL database {sql_db_name} created.')
+
+    # Storage Management Client
+    storage_client = StorageManagementClient(credential, subscription_id)
+    storage_client.storage_accounts.begin_create(
+        resource_group_name,
+        storage_account_name,
+        StorageAccountCreateParameters(
+            sku=Sku(name='Standard_LRS'),
+            kind=Kind.STORAGE_V2,
+            location=location
+        )
+    ).result()
+    logger.info(f'Storage account {storage_account_name} created.')
+
+except Exception as e:
+    logger.error(f'An error occurred: {e}')
